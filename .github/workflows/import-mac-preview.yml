@@ -1,0 +1,45 @@
+name: Import verified Mac preview
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: Temporary download URL for the already-public verified installer
+        required: true
+        type: string
+      confirmation:
+        description: Type import-nph-mac
+        required: true
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: nph-mac-preview-import
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate and download the fixed installer
+        env:
+          ASSET_SOURCE_URL: ${{ inputs.source_url }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          set +x
+          [[ "$GITHUB_REPOSITORY" == "BNHP-creater/NPH-releases" ]]
+          [[ "$GITHUB_ACTOR" == "BNHP-creater" && "$GITHUB_TRIGGERING_ACTOR" == "BNHP-creater" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" && "$CONFIRMATION" == "import-nph-mac" ]]
+          printf '::add-mask::%s\n' "$ASSET_SOURCE_URL"
+          python3 -c 'import os,urllib.parse; u=urllib.parse.urlsplit(os.environ["ASSET_SOURCE_URL"]); assert u.scheme=="https" and u.hostname=="release-assets.githubusercontent.com" and u.port is None and u.username is None and u.password is None and u.path.startswith("/github-production-release-asset/") and not u.fragment'
+          file=NPH-0.2.1-mac-preview.1794141161738.a7f2078-macOS-arm64.dmg
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 300 "$ASSET_SOURCE_URL" --output "$RUNNER_TEMP/$file"
+          [[ "$(stat -c '%s' "$RUNNER_TEMP/$file")" == "121532257" ]]
+          [[ "$(sha256sum "$RUNNER_TEMP/$file" | awk '{print $1}')" == "b2063cc3578380e4a8a57cf8940e12d7d700647682a632af84be400ad0bc0658" ]]
+      - name: Publish the verified installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload nph-mac-preview-a7f2078 "$RUNNER_TEMP/NPH-0.2.1-mac-preview.1794141161738.a7f2078-macOS-arm64.dmg" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view nph-mac-preview-a7f2078 --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | {name,size,digest}'
