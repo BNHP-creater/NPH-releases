@@ -1,0 +1,22 @@
+name: Verify public Mac preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify anonymous public download
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "BNHP-creater/NPH-releases" ]]
+          [[ "$GITHUB_ACTOR" == "BNHP-creater" && "$GITHUB_TRIGGERING_ACTOR" == "BNHP-creater" ]]
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          file=NPH-0.2.1-mac-preview.1794141161738.a7f2078-macOS-arm64.dmg
+          curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --max-redirs 3 --tlsv1.2 --connect-timeout 15 --max-time 120 "https://github.com/BNHP-creater/NPH-releases/releases/download/nph-mac-preview-a7f2078/$file" --output "$RUNNER_TEMP/$file" --write-out 'Anonymous HTTP %{http_code}; bytes %{size_download}; seconds %{time_total}\n'
+          [[ "$(stat -c '%s' "$RUNNER_TEMP/$file")" == "121532257" ]]
+          [[ "$(sha256sum "$RUNNER_TEMP/$file" | awk '{print $1}')" == "b2063cc3578380e4a8a57cf8940e12d7d700647682a632af84be400ad0bc0658" ]]
+          sha256sum "$RUNNER_TEMP/$file"
+          printf 'Anonymous public download verified: 121532257 bytes; SHA-256 b2063cc3578380e4a8a57cf8940e12d7d700647682a632af84be400ad0bc0658. Installer was not executed.\n' >> "$GITHUB_STEP_SUMMARY"
